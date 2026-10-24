@@ -3,11 +3,23 @@ from django.contrib.auth.models import User
 
 
 class Trip(models.Model):
+
+    class Status(models.TextChoices):
+        PLANNED = "planned", "Planifié"
+        IN_PROGRESS = "in_progress", "En cours"
+        COMPLETED = "completed", "Terminé"
+        CANCELLED = "cancelled", "Annulé"
+
     title = models.CharField(max_length=200)
     description = models.TextField(blank=True)
     start_date = models.DateField()
     end_date = models.DateField()
-    status = models.CharField(max_length=50)
+
+    status = models.CharField(
+        max_length=20,
+        choices=Status.choices,
+        default=Status.PLANNED
+    )
 
     owner = models.ForeignKey(
         User,
@@ -27,6 +39,7 @@ class Trip(models.Model):
 
 
 class Destination(models.Model):
+
     city = models.CharField(max_length=100)
     country = models.CharField(max_length=100)
     arrival_date = models.DateField()
@@ -43,9 +56,24 @@ class Destination(models.Model):
 
 
 class Activity(models.Model):
+
+    class Category(models.TextChoices):
+        SIGHTSEEING = "sightseeing", "Visite touristique"
+        FOOD = "food", "Restauration"
+        TRANSPORT = "transport", "Transport"
+        OUTDOOR = "outdoor", "Plein air"
+        MUSEUM = "museum", "Musée"
+        OTHER = "other", "Autre"
+
     name = models.CharField(max_length=200)
     description = models.TextField(blank=True)
-    category = models.CharField(max_length=100)
+
+    category = models.CharField(
+        max_length=20,
+        choices=Category.choices,
+        default=Category.OTHER
+    )
+
     date = models.DateField()
 
     cost = models.DecimalField(
@@ -64,6 +92,11 @@ class Activity(models.Model):
 
 
 class Participation(models.Model):
+
+    class Role(models.TextChoices):
+        ORGANIZER = "organizer", "Organisateur"
+        PARTICIPANT = "participant", "Participant"
+
     user = models.ForeignKey(
         User,
         on_delete=models.CASCADE,
@@ -76,7 +109,12 @@ class Participation(models.Model):
         related_name="participations"
     )
 
-    role = models.CharField(max_length=50)
+    role = models.CharField(
+        max_length=20,
+        choices=Role.choices,
+        default=Role.PARTICIPANT
+    )
+
     joined_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
