@@ -66,7 +66,7 @@ class DestinationViewSet(ModelViewSet):
 
         serializer.save()
 
-    # ajout de l'action pour obtenir les données météorologiques pour une destination spécifique
+    # ajout de l'action pour obtenir les données météorologiques
 
     @action(detail=True, methods=["get"], url_path="weather")
     def get_weather(self, request, pk=None):
@@ -89,38 +89,61 @@ class DestinationViewSet(ModelViewSet):
                 {"error": str(error)}, status=status.HTTP_503_SERVICE_UNAVAILABLE
             )
 
-    # Ajout
+    # Ajout de l'action pour obtenir les informations d'un pays
     @action(detail=True, methods=["get"], url_path="country")
     def get_country(self, request, pk=None):
 
         destination = self.get_object()
 
         try:
-            code = get_country_code(
-                destination.city,
-                destination.country
-            )
+            code = get_country_code(destination.city, destination.country)
 
             country_data = get_country_data(code)
 
-            return Response({
-                "destination_id": destination.id,
-                "pays": country_data
-            }, status=status.HTTP_200_OK)
-
-        except (DestinationNotFound, CountryNotFound) as error:
             return Response(
-                {"detail": str(error)},
-                status=status.HTTP_404_NOT_FOUND
+                {"destination_id": destination.id, "pays": country_data},
+                status=status.HTTP_200_OK,
             )
 
-        except (
-            MeteoNotAvailable,
-            CountriesServiceUnavailable
-        ) as error:
+        except (DestinationNotFound, CountryNotFound) as error:
+            return Response({"detail": str(error)}, status=status.HTTP_404_NOT_FOUND)
+
+        except (MeteoNotAvailable, CountriesServiceUnavailable) as error:
             return Response(
-                {"detail": str(error)},
-                status=status.HTTP_503_SERVICE_UNAVAILABLE
+                {"detail": str(error)}, status=status.HTTP_503_SERVICE_UNAVAILABLE
+            )
+
+            # AGGRÉGATION DES DONNÉES MÉTÉO + PAYS
+
+    @action(detail=True, methods=["get"], url_path="details")
+    def get_details(self, request, pk=None):
+
+        destination = self.get_object()
+
+        destination_data = self.get_serializer(destination).data
+
+        try:
+
+            weather_data = get_weather_data(destination.city, destination.country)
+
+            country_code = get_country_code(destination.city, destination.country)
+
+            country_data = get_country_data(country_code)
+
+            resultat = {
+                "destination": destination_data,
+                "meteo": weather_data,
+                "pays": country_data,
+            }
+
+            return Response(resultat, status=status.HTTP_200_OK)
+
+        except (DestinationNotFound, CountryNotFound) as error:
+            return Response({"detail": str(error)}, status=status.HTTP_404_NOT_FOUND)
+
+        except (MeteoNotAvailable, CountriesServiceUnavailable) as error:
+            return Response(
+                {"detail": str(error)}, status=status.HTTP_503_SERVICE_UNAVAILABLE
             )
 
 
