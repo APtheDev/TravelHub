@@ -40,6 +40,7 @@ INSTALLED_APPS = [
 
     "rest_framework",
     "travel",
+    "graphene_django",
 ]
 
 MIDDLEWARE = [
@@ -138,4 +139,8 @@ REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": [
         "rest_framework_simplejwt.authentication.JWTAuthentication",
     ],
+}
+
+GRAPHENE = {
+    "SCHEMA": "travel.schemaGraphQL.schema",
 }

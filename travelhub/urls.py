@@ -21,11 +21,12 @@ from rest_framework_simplejwt.views import (
     TokenObtainPairView,
     TokenRefreshView,
 )
+from graphene_django.views  import GraphQLView
 
 urlpatterns = [
     path("admin/", admin.site.urls),
     path("api/", include("travel.urls")),
-
     path("api/token/", TokenObtainPairView.as_view()),
     path("api/token/refresh/", TokenRefreshView.as_view()),
+    path("graphql/", GraphQLView.as_view(graphiql=True)) #  route pour API GraphQL
 ]
