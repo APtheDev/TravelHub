@@ -37,10 +37,10 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
-
-    "rest_framework",
-    "travel",
-    "graphene_django",
+    'drf_spectacular',
+    'rest_framework',
+    'travel',
+    'graphene_django',
 ]
 
 MIDDLEWARE = [
@@ -139,8 +139,16 @@ REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": [
         "rest_framework_simplejwt.authentication.JWTAuthentication",
     ],
+    "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
 }
 
 GRAPHENE = {
     "SCHEMA": "travel.schemaGraphQL.schema",
+}
+
+SPECTACULAR_SETTINGS = {
+    "TITLE": "TravelHub API",
+    "DESCRIPTION": "API REST de planification et gestion de voyages",
+    "VERSION": "1.0.0",
+    "SERVE_INCLUDE_SCHEMA": False,
 }

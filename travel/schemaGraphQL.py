@@ -2,9 +2,9 @@ import graphene
 from graphene_django import DjangoObjectType
 from graphql import GraphQLError
 from .serializers import TripSerializer, DestinationSerializer, ActivitySerializer
-
-
-from .models import Trip, Destination, Activity
+from django.contrib.auth.models import User
+from .models import Trip, Destination, Activity, Participation
+from django.db import transaction
 
 
 class ActivityType(DjangoObjectType):
@@ -73,6 +73,24 @@ class TripType(DjangoObjectType):
         return Destination.objects.filter(trip=trip, trip__owner=user)
 
 
+class ParticipationType(DjangoObjectType):
+
+    username = graphene.String()
+
+    class Meta:
+        model = Participation
+        fields = (
+            "id",
+            "role",
+            "joined_at",
+        )
+        convert_choices_to_enum = False
+
+    @staticmethod
+    def resolve_username(participation: Participation, info):
+        return participation.user.username
+
+
 class Query(graphene.ObjectType):
 
     hello = graphene.String()
@@ -81,8 +99,12 @@ class Query(graphene.ObjectType):
 
     trip = graphene.Field(TripType, id=graphene.Int(required=True))
 
+    participations = graphene.List(
+        ParticipationType, trip_id=graphene.Int(required=True)
+    )
+
     def resolve_hello(root, info):
-        return "Bienvenue sur l'API GraphQL TravelHub!"
+        return "Pong"
 
     def resolve_trips(root, info):
         user = info.context.user
@@ -106,6 +128,17 @@ class Query(graphene.ObjectType):
             .first()
         )
 
+    @staticmethod
+    def resolve_participations(root, info, trip_id):
+        user = info.context.user
+
+        if not user.is_authenticated:
+            return Participation.objects.none()
+
+        return Participation.objects.filter(
+            trip_id=trip_id, trip__owner=user
+        ).select_related("user")
+
 
 class CreateTrip(graphene.Mutation):
 
@@ -121,16 +154,15 @@ class CreateTrip(graphene.Mutation):
     ok = graphene.Boolean(required=True)
 
     @staticmethod
+    @transaction.atomic
     def mutate(
         root, info, title, start_date, end_date, description="", status="planned"
     ):
         user = info.context.user
 
-        # Vérifier que l'utilisateur est connecté
         if not user.is_authenticated:
             raise GraphQLError("Authentification requise.")
 
-        # Réutiliser les validations REST
         serializer = TripSerializer(
             data={
                 "title": title,
@@ -144,8 +176,13 @@ class CreateTrip(graphene.Mutation):
         if not serializer.is_valid():
             raise GraphQLError(str(serializer.errors))
 
-        # Enregistrer le voyage dans PostgreSQL
         trip = serializer.save(owner=user)
+
+        Participation.objects.get_or_create(
+            user=user,
+            trip=trip,
+            defaults={"role": Participation.Role.ORGANIZER},
+        )
 
         return CreateTrip(trip=trip, ok=True)
 
@@ -219,9 +256,7 @@ class DeleteTrip(graphene.Mutation):
         if not user.is_authenticated:
             raise GraphQLError("Authentification requise")
 
-        trip = Trip.objects.filter(
-            id=id,
-        ).first()
+        trip = Trip.objects.filter(id=id, owner=user).first()
 
         if trip is None:
             raise GraphQLError("Le Voyage est Introuvable ou l'accès est refusé ! :(")
@@ -489,6 +524,112 @@ class DeleteActivity(graphene.Mutation):
         return DeleteActivity(ok=True, deleted_id=id)
 
 
+class CreateParticipation(graphene.Mutation):
+
+    class Arguments:
+        trip_id = graphene.Int(required=True)
+        username = graphene.String(required=True)
+
+    participation = graphene.Field(ParticipationType)
+    ok = graphene.Boolean(required=True)
+
+    @staticmethod
+    def mutate(root, info, trip_id, username):
+
+        user = info.context.user
+        if not user.is_authenticated:
+            raise GraphQLError("Authentification requise.")
+        trip = Trip.objects.filter(id=trip_id, owner=user).first()
+
+        if trip is None:
+            raise GraphQLError("Voyage introuvable ou accès refusé.")
+
+        participant = User.objects.filter(username=username, is_active=True).first()
+
+        if participant is None:
+            raise GraphQLError("Utilisateur introuvable.")
+
+        participation, created = Participation.objects.get_or_create(
+            user=participant,
+            trip=trip,
+            defaults={"role": Participation.Role.PARTICIPANT},
+        )
+
+        if not created:
+            raise GraphQLError("Cet utilisateur participe déjà au voyage.")
+
+        return CreateParticipation(participation=participation, ok=True)
+
+
+class UpdateParticipation(graphene.Mutation):
+
+    class Arguments:
+        id = graphene.Int(required=True)
+        role = graphene.String(required=True)
+
+    participation = graphene.Field(ParticipationType)
+    ok = graphene.Boolean(required=True)
+
+    @staticmethod
+    def mutate(root, info, id, role):
+        user = info.context.user
+
+        if not user.is_authenticated:
+            raise GraphQLError("Authentification requise.")
+
+        participation = (
+            Participation.objects.filter(id=id, trip__owner=user)
+            .select_related("trip", "user")
+            .first()
+        )
+
+        if participation is None:
+            raise GraphQLError("Participation introuvable ou accès refusé.")
+
+        if role not in Participation.Role.values:
+            raise GraphQLError("Rôle invalide.")
+
+        if participation.user_id == participation.trip.owner_id:
+            raise GraphQLError("Impossible de modifier le rôle du propriétaire.")
+
+        participation.role = role
+        participation.save(update_fields=["role"])
+
+        return UpdateParticipation(participation=participation, ok=True)
+
+
+class DeleteParticipation(graphene.Mutation):
+
+    class Arguments:
+        id = graphene.Int(required=True)
+
+    ok = graphene.Boolean(required=True)
+    deleted_id = graphene.Int(required=True)
+
+    @staticmethod
+    def mutate(root, info, id):
+        user = info.context.user
+
+        if not user.is_authenticated:
+            raise GraphQLError("Authentification requise.")
+
+        participation = (
+            Participation.objects.filter(id=id, trip__owner=user)
+            .select_related("trip")
+            .first()
+        )
+
+        if participation is None:
+            raise GraphQLError("Participation introuvable ou accès refusé.")
+
+        if participation.user_id == participation.trip.owner_id:
+            raise GraphQLError("Impossible de retirer le propriétaire.")
+
+        participation.delete()
+
+        return DeleteParticipation(ok=True, deleted_id=id)
+
+
 class Mutation(graphene.ObjectType):
     create_trip = CreateTrip.Field()
     update_trip = UpdateTrip.Field()
@@ -501,6 +642,10 @@ class Mutation(graphene.ObjectType):
     create_activity = CreateActivity.Field()
     update_activity = UpdateActivity.Field()
     delete_activity = DeleteActivity.Field()
+
+    create_participation = CreateParticipation.Field()
+    update_participation = UpdateParticipation.Field()
+    delete_participation = DeleteParticipation.Field()
 
 
 schema = graphene.Schema(query=Query, mutation=Mutation)
