@@ -10,13 +10,15 @@ services:
       DJANGO_PUBLIC_URL: ${DJANGO_PUBLIC_URL}
       DATABASE_URL: "postgresql://travelhub:${POSTGRES_PASSWORD}@db:5432/travelhub"
 
+    ports:
+      - "8001:8000"
+
     depends_on:
       db:
         condition: service_healthy
 
     networks:
       - backend
-      - proxy
 
   db:
     image: postgres:17
@@ -44,7 +46,3 @@ volumes:
 
 networks:
   backend:
-
-  proxy:
-    external: true
-    name: npm_network
