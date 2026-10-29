@@ -1,0 +1,50 @@
+services:
+  web:
+    build: .
+    restart: unless-stopped
+
+    environment:
+      DJANGO_DEBUG: "False"
+      DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY}
+      DJANGO_ALLOWED_HOSTS: ${DJANGO_ALLOWED_HOSTS}
+      DJANGO_PUBLIC_URL: ${DJANGO_PUBLIC_URL}
+      DATABASE_URL: "postgresql://travelhub:${POSTGRES_PASSWORD}@db:5432/travelhub"
+
+    depends_on:
+      db:
+        condition: service_healthy
+
+    networks:
+      - backend
+      - proxy
+
+  db:
+    image: postgres:17
+    restart: unless-stopped
+
+    environment:
+      POSTGRES_DB: travelhub
+      POSTGRES_USER: travelhub
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+
+    volumes:
+      - travelhub_db:/var/lib/postgresql/data
+
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U travelhub -d travelhub"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+    networks:
+      - backend
+
+volumes:
+  travelhub_db:
+
+networks:
+  backend:
+
+  proxy:
+    external: true
+    name: npm_network
