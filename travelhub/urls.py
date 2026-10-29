@@ -27,13 +27,18 @@ from drf_spectacular.views import (
     SpectacularSwaggerView,
 )
 from graphene_django.views import GraphQLView
+from django.views.decorators.csrf import csrf_exempt
+from travel.views import JWTGraphQLView
 
 urlpatterns = [
     path("admin/", admin.site.urls),
     path("api/", include("travel.urls")),
     path("api/token/", TokenObtainPairView.as_view()),
     path("api/token/refresh/", TokenRefreshView.as_view()),
-    path("graphql/", GraphQLView.as_view(graphiql=True)),  #  route pour API GraphQL
+    path(
+    "graphql/",
+    csrf_exempt(JWTGraphQLView.as_view(graphiql=True)),
+    ),  #  route pour API GraphQL
     path("api/schema/", SpectacularAPIView.as_view(), name="schema"),  # schéma Open API
     path(
         "api/docs/",

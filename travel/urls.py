@@ -6,6 +6,8 @@ from .views import (
     DestinationViewSet,
     ActivityViewSet,
     ParticipationViewSet,
+    UserViewSet,
+    RegisterView
 )
 
 router = DefaultRouter()
@@ -14,5 +16,9 @@ router.register("trips", TripViewSet)
 router.register("destinations", DestinationViewSet)
 router.register("activities", ActivityViewSet)
 router.register("participations", ParticipationViewSet)
+router.register("users", UserViewSet)
 
-urlpatterns = router.urls
+urlpatterns = [
+    path("", include(router.urls)),
+    path("register/", RegisterView.as_view(), name="register"),
+]
